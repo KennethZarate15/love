@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>For My Love</title>
+  <meta name="description" content="A romantic, responsive gallery with a love theme, floating hearts, and an accessible lightbox." />
+  <meta name="theme-color" content="#1b0b17" />
+  <meta property="og:title" content="For My Love" />
+  <meta property="og:description" content="A little surprise filled with our memories and gentle hearts." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="images/pic1.jpg" />
+  <link rel="icon" href="images/pic1.jpg" />
+  <link rel="preload" as="image" href="images/pic1.jpg" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Romantic overrides and heart animations */
+    :root {
+      --bg: #1b0b17;
+      --surface: #210f1c;
+      --text: #ffedf1;
+      --muted: #ffd7e0;
+      --brand: #ff6b9e;
+      --brand-2: #ff8fab;
+      --ring: #ffa6c1;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    :root[data-theme="light"] {
+      --bg: #fff1f4;
+      --surface: #ffffff;
+      --text: #2b0b1e;
+      --muted: #7a3b53;
+      --brand: #e11d48;
+      --brand-2: #fb7185;
+      --ring: #f43f5e;
+      --shadow: 0 6px 20px rgba(190,24,93,0.12);
+    }
+    body {
+      background: radial-gradient(1200px 800px at -10% -10%, rgba(255,107,158,0.14), transparent 60%),
+                  radial-gradient(1200px 800px at 110% 10%, rgba(255,143,171,0.18), transparent 60%),
+                  var(--bg) !important;
+    }
+    .brand-accent { color: var(--brand) !important; text-shadow: 0 0 16px rgba(255,107,158,.5) !important; }
+    .hero h2 { letter-spacing: .02em; }
+    .hero p { color: var(--muted) !important; }
+
+    /* Hearts overlay */
+    .love-overlay { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 40; }
+    .heart { position: fixed; font-size: 18px; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); will-change: transform, opacity; }
+    .float-heart { bottom: -20px; left: var(--x, 50%); transform: translateY(0) scale(var(--s,1)); opacity: .9; animation: floatHeart var(--d, 9s) ease-in forwards; }
+    .burst-heart { left: calc(var(--x) * 1px); top: calc(var(--y) * 1px); transform: translate(0,0) scale(var(--s,1)); opacity: .95; animation: burstHeart var(--d, 1200ms) ease-out forwards; }
+
+    @keyframes floatHeart {
+      0%   { transform: translateY(0) scale(var(--s,1)); opacity: .9; }
+      100% { transform: translateY(-120vh) scale(calc(var(--s,1) * .8)); opacity: 0; }
+    }
+    @keyframes burstHeart {
+      0%   { transform: translate(0,0) scale(var(--s,1)); opacity: .95; }
+      100% { transform: translate(var(--tx), var(--ty)) scale(.6); opacity: 0; }
+    }
+
+    /* Romantic accents for chips */
+    .chip.is-active { border-color: var(--ring) !important; box-shadow: 0 0 0 2px rgba(244,63,94,.25) inset !important; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" role="banner">
+    <div class="container header-inner">
+      <h1 class="brand" aria-label="For My Love Home">
+        <span class="brand-accent">F</span>or My Love
+      </h1>
+      <nav class="site-nav" aria-label="Primary">
+        <button id="themeToggle" class="btn" aria-pressed="false" aria-label="Toggle color theme">
+          <span class="btn-icon" aria-hidden="true">🌗</span>
+          <span class="btn-text">Theme</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="container" role="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-content">
+        <h2 id="hero-title">To the Love of My Life</h2>
+        <p>Every photo is a heartbeat of our story. I made this for you — a little garden of our memories, wrapped in soft light and gentle hearts.</p>
+        <div class="controls" role="toolbar" aria-label="Gallery controls">
+          <div class="filter-group" role="group" aria-label="Filters">
+            <button class="chip is-active" data-filter="all" aria-pressed="true">All</button>
+            <button class="chip" data-filter="nature">Us</button>
+            <button class="chip" data-filter="city">Adventures</button>
+            <button class="chip" data-filter="abstract">Dreams</button>
+          </div>
+          <div class="layout-group" role="group" aria-label="Layout">
+            <button class="chip" data-cols="2" aria-label="Two columns">2</button>
+            <button class="chip is-active" data-cols="3" aria-label="Three columns">3</button>
+            <button class="chip" data-cols="4" aria-label="Four columns">4</button>
+          </div>
+          <div class="upload-group" role="group" aria-label="Upload">
+            <input id="uploadInput" type="file" accept="image/*" multiple hidden />
+            <button id="uploadBtn" class="btn" aria-label="Upload images">
+              <span aria-hidden="true">⬆️</span>
+              <span>Upload</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="gallery" aria-label="Image gallery">
+      <div id="grid" class="grid" data-columns="3">
+        <figure class="card" data-tag="nature">
+          <button class="action-delete" title="Delete" aria-label="Delete">✕</button>
+          <img src="images/pic1.jpg" alt="A moment that feels like home" loading="lazy" />
+          <figcaption>Where I feel safe — with you.</figcaption>
+        </figure>
+        <figure class="card" data-tag="city">
+          <button class="action-delete" title="Delete" aria-label="Delete">✕</button>
+          <img src="images/pic2.jpg" alt="A walk through our favorite place" loading="lazy" />
+          <figcaption>Our golden hour, hand in hand.</figcaption>
+        </figure>
+        <figure class="card" data-tag="abstract">
+          <button class="action-delete" title="Delete" aria-label="Delete">✕</button>
+          <img src="images/pic3.jpg" alt="Warm colors of our laughter" loading="lazy" />
+          <figcaption>Colors of your smile.</figcaption>
+        </figure>
+        <!-- Additional entries to fill the grid -->
+        <figure class="card" data-tag="nature">
+          <button class="action-delete" title="Delete" aria-label="Delete">✕</button>
+          <img src="images/pic2.jpg" alt="Another day I fell for you again" loading="lazy" />
+          <figcaption>A thousand tiny moments, always you.</figcaption>
+        </figure>
+        <figure class="card" data-tag="city">
+          <button class="action-delete" title="Delete" aria-label="Delete">✕</button>
+          <img src="images/pic3.jpg" alt="Neon glow like our late night talks" loading="lazy" />
+          <figcaption>Late-night giggles, forever ours.</figcaption>
+        </figure>
+        <figure class="card" data-tag="abstract">
+          <button class="action-delete" title="Delete" aria-label="Delete">✕</button>
+          <img src="images/pic1.jpg" alt="Soft shapes of a promise" loading="lazy" />
+          <figcaption>My favorite promise: us.</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <div id="lightbox" class="lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Image preview">
+    <button class="lightbox-close" data-action="close" aria-label="Close preview">✕</button>
+    <button class="lightbox-nav prev" data-action="prev" aria-label="Previous image">‹</button>
+    <figure class="lightbox-stage">
+      <img id="lightboxImage" src="" alt="" />
+      <figcaption id="lightboxCaption"></figcaption>
+    </figure>
+    <button class="lightbox-nav next" data-action="next" aria-label="Next image">›</button>
+  </div>
+
+  <footer class="site-footer" role="contentinfo">
+    <div class="container">
+      <p>Forever is my favorite love story with you.</p>
+    </div>
+  </footer>
+
+  <!-- Hearts overlay container -->
+  <div class="love-overlay" aria-hidden="true"></div>
+
+  <script src="script.js" defer></script>
+  <script>
+    // Romantic heart animations: floating ambient hearts + bursts on image click
+    (function () {
+      const overlay = document.querySelector('.love-overlay');
+      if (!overlay) return;
+
+      const palette = ['#ff6b9e', '#ff8fab', '#fca5a5', '#f472b6', '#e879f9'];
+      const rand = (min, max) => Math.random() * (max - min) + min;
+      const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+      function spawnFloatHeart() {
+        const span = document.createElement('span');
+        span.className = 'heart float-heart';
+        span.textContent = '❤';
+        span.style.setProperty('--x', rand(5, 95) + '%');
+        span.style.setProperty('--s', rand(0.8, 1.4));
+        span.style.setProperty('--d', rand(7.5, 11) + 's');
+        span.style.color = choice(palette);
+        overlay.appendChild(span);
+        span.addEventListener('animationend', () => span.remove());
+      }
+
+      function spawnBurst(x, y, count = 14) {
+        for (let i = 0; i < count; i++) {
+          const span = document.createElement('span');
+          span.className = 'heart burst-heart';
+          span.textContent = '❤';
+          span.style.setProperty('--x', x);
+          span.style.setProperty('--y', y);
+          const angle = rand(0, Math.PI * 2);
+          const distance = rand(60, 140);
+          const tx = Math.cos(angle) * distance + 'px';
+          const ty = Math.sin(angle) * distance + 'px';
+          span.style.setProperty('--tx', tx);
+          span.style.setProperty('--ty', ty);
+          span.style.setProperty('--s', rand(0.7, 1.3));
+          span.style.setProperty('--d', rand(900, 1400) + 'ms');
+          span.style.color = choice(palette);
+          overlay.appendChild(span);
+          span.addEventListener('animationend', () => span.remove());
+        }
+      }
+
+      // Ambient hearts
+      const floatTimer = setInterval(spawnFloatHeart, 1200);
+      // Clean up on page unload
+      window.addEventListener('beforeunload', () => clearInterval(floatTimer));
+
+      // Burst on card click
+      document.addEventListener('click', (e) => {
+        const card = e.target.closest('.card');
+        if (!card) return;
+        const rect = card.getBoundingClientRect();
+        const x = Math.round(rect.left + rect.width / 2);
+        const y = Math.round(rect.top + rect.height / 2);
+        spawnBurst(x, y);
+      });
+    })();
+  </script>
+</body>
+</html>
