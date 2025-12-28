@@ -40,6 +40,8 @@ img { display: block; max-width: 100%; height: auto; }
 .container {
   width: min(1100px, 92vw);
   margin: 0 auto;
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
 }
 
 .skip-link {
@@ -59,6 +61,7 @@ img { display: block; max-width: 100%; height: auto; }
   background: rgba(15, 23, 42, 0.6);
   backdrop-filter: saturate(1.2) blur(10px);
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  padding-top: env(safe-area-inset-top);
 }
 
 .header-inner { display: flex; align-items: center; justify-content: space-between; padding: 1rem 0; }
@@ -71,7 +74,8 @@ img { display: block; max-width: 100%; height: auto; }
   color: var(--text);
   border: 1px solid rgba(148,163,184,.2);
   border-radius: 999px;
-  padding: .5rem .85rem;
+  padding: .65rem 1rem;
+  min-height: 40px;
   display: inline-flex; align-items: center; gap: .5rem;
   box-shadow: var(--shadow);
 }
@@ -91,8 +95,9 @@ img { display: block; max-width: 100%; height: auto; }
   color: var(--text);
   border: 1px solid transparent;
   border-radius: 999px;
-  padding: .45rem .7rem;
-  font-size: .9rem;
+  padding: .6rem .9rem;
+  min-height: 40px;
+  font-size: .95rem;
   cursor: pointer;
 }
 .chip:hover { border-color: rgba(148,163,184,.35); }
@@ -115,8 +120,8 @@ img { display: block; max-width: 100%; height: auto; }
   overflow: hidden;
   transform: translateZ(0);
 }
-.card img { width: 100%; height: auto; display: block; }
-.card figcaption { padding: .75rem; font-size: .95rem; color: var(--muted); }
+.card img { width: 100%; height: auto; display: block; font-size: 0; color: transparent; }
+.card figcaption { padding: .85rem; font-size: 1rem; color: var(--muted); display: none; }
 
 /* Delete action button */
 .card .action-delete {
@@ -146,13 +151,13 @@ img { display: block; max-width: 100%; height: auto; }
 }
 .lightbox[aria-hidden="false"] { opacity: 1; pointer-events: auto; }
 .lightbox-stage { max-width: min(92vw, 1100px); max-height: 86vh; margin: 0; display: grid; gap: .5rem; }
-.lightbox-stage img { max-width: 100%; max-height: 72vh; border-radius: 12px; box-shadow: var(--shadow); }
+.lightbox-stage img { max-width: 100%; max-height: 72vh; border-radius: 12px; box-shadow: var(--shadow); touch-action: pan-y; }
 .lightbox-stage figcaption { text-align: center; color: var(--muted); font-size: .95rem; }
 .lightbox-close {
-  position: absolute; top: 1rem; right: 1rem; background: rgba(15,23,42,.6); border: 1px solid rgba(148,163,184,.2); color: var(--text); border-radius: 10px; padding: .4rem .55rem; box-shadow: var(--shadow);
+  position: absolute; top: calc(1rem + env(safe-area-inset-top)); right: 1rem; background: rgba(15,23,42,.6); border: 1px solid rgba(148,163,184,.2); color: var(--text); border-radius: 12px; padding: .55rem .7rem; box-shadow: var(--shadow);
   cursor: pointer;
 }
-.lightbox-nav { background: rgba(15,23,42,.6); border: 1px solid rgba(148,163,184,.2); color: var(--text); border-radius: 10px; padding: .4rem .6rem; box-shadow: var(--shadow); cursor: pointer; }
+.lightbox-nav { background: rgba(15,23,42,.6); border: 1px solid rgba(148,163,184,.2); color: var(--text); border-radius: 12px; padding: .6rem .8rem; min-width: 44px; min-height: 44px; box-shadow: var(--shadow); cursor: pointer; }
 .prev { margin-right: .5rem; }
 .next { margin-left: .5rem; }
 
@@ -161,8 +166,21 @@ img { display: block; max-width: 100%; height: auto; }
 @media (max-width: 900px) {
   .grid { column-count: var(--cols, 2); }
 }
-@media (max-width: 640px) {
-  .header-inner { padding: .75rem 0; }
+@media (max-width: 780px) {
+  .brand { font-size: 1.1rem; }
+  .header-inner { padding: .65rem 0; }
   .controls { gap: .5rem; }
-  .grid { column-count: var(--cols, 1); }
+  .chip { padding: .55rem .85rem; min-height: 40px; font-size: .95rem; }
+}
+@media (max-width: 480px) {
+  body { font-size: 16px; }
+  .grid { column-count: 1; }
+  .site-nav .btn { min-height: 44px; padding: .7rem 1rem; }
+  .chip { min-height: 44px; padding: .65rem 1rem; }
+  .card .action-delete { opacity: 1; } /* always visible on touch */
+}
+
+/* Ensure delete is visible on touch-only devices */
+@media (hover: none) and (pointer: coarse) {
+  .card .action-delete { opacity: 1; }
 }

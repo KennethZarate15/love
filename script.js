@@ -1,4 +1,4 @@
-// ACT Showcase - Love Edition with persistence and editable captions/categories
+// ACT Showcase - Love Edition with server persistence (PHP API) + local fallback for defaults
 (function () {
   'use strict';
 
@@ -19,69 +19,10 @@
     return { get, toggle };
   })();
 
-  // Persistence: IndexedDB for uploaded items
-  const DB = (() => {
-    const DB_NAME = 'loveGallery';
-    const STORE = 'items';
-    let db;
-
-    function open() {
-      return new Promise((resolve, reject) => {
-        if (db) return resolve(db);
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = (e) => {
-          const d = e.target.result;
-          if (!d.objectStoreNames.contains(STORE)) {
-            d.createObjectStore(STORE, { keyPath: 'id' });
-          }
-        };
-        req.onsuccess = () => { db = req.result; resolve(db); };
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function getAll() {
-      const d = await open();
-      return new Promise((resolve, reject) => {
-        const tx = d.transaction(STORE, 'readonly');
-        const st = tx.objectStore(STORE);
-        const req = st.getAll();
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function put(item) {
-      const d = await open();
-      return new Promise((resolve, reject) => {
-        const tx = d.transaction(STORE, 'readwrite');
-        const st = tx.objectStore(STORE);
-        const req = st.put(item);
-        req.onsuccess = () => resolve(item);
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    async function remove(id) {
-      const d = await open();
-      return new Promise((resolve, reject) => {
-        const tx = d.transaction(STORE, 'readwrite');
-        const st = tx.objectStore(STORE);
-        const req = st.delete(id);
-        req.onsuccess = () => resolve();
-        req.onerror = () => reject(req.error);
-      });
-    }
-
-    return { getAll, put, remove };
-  })();
-
-  // Track deletions of built-in default cards (by src) using localStorage
+  // Default deletions (for built-in images) tracked per origin
   const DefaultDeletes = (() => {
     const KEY = 'love-default-hidden';
-    const load = () => {
-      try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { return new Set(); }
-    };
+    const load = () => { try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { return new Set(); } };
     const save = (set) => localStorage.setItem(KEY, JSON.stringify(Array.from(set)));
     const add = (src) => { const s = load(); s.add(src); save(s); };
     const has = (src) => load().has(src);
@@ -97,6 +38,46 @@
     return { getAll, set };
   })();
 
+  // API client
+  const API = (() => {
+    const base = 'api/index.php';
+    async function list() {
+      const res = await fetch(`${base}?action=list`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('List failed');
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'List error');
+      return data.items || [];
+    }
+    async function upload(files, { tag, captionText, alt }) {
+      const fd = new FormData();
+      for (const f of files) fd.append('files[]', f);
+      fd.append('action', 'upload');
+      if (tag) fd.append('tag', tag);
+      if (captionText) fd.append('captionText', captionText);
+      if (alt) fd.append('alt', alt);
+      const res = await fetch(base, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Upload error');
+      return data.items || [];
+    }
+    async function update(item) {
+      const res = await fetch(`${base}?action=update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) });
+      if (!res.ok) throw new Error('Update failed');
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Update error');
+      return data.item;
+    }
+    async function remove(id) {
+      const res = await fetch(`${base}?action=delete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      if (!res.ok) throw new Error('Delete failed');
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Delete error');
+      return true;
+    }
+    return { list, upload, update, remove };
+  })();
+
   // Masonry Grid Controller
   const Grid = (() => {
     const grid = $('#grid');
@@ -110,10 +91,10 @@
         card.style.display = match ? '' : 'none';
       });
     };
-    return { getCols, setCols, filter, grid };
+    return { grid, getCols, setCols, filter };
   })();
 
-  // Lightbox Viewer
+  // Lightbox
   const Lightbox = (() => {
     const el = $('#lightbox');
     const img = $('#lightboxImage');
@@ -130,16 +111,17 @@
     const trapFocus = () => { lastFocused = document.activeElement; const list = focusables(); list[0]?.focus(); on(el, 'keydown', handleKey); };
     const releaseFocus = () => { el.removeEventListener('keydown', handleKey); lastFocused?.focus(); };
     const handleKey = (e) => { if (e.key === 'Escape') return close(); if (e.key === 'ArrowRight') return next(); if (e.key === 'ArrowLeft') return prev(); if (e.key === 'Tab') { const nodes = focusables(); if (!nodes.length) return; const first = nodes[0]; const last = nodes[nodes.length - 1]; if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); } } };
-    on(el, 'click', (e) => { const t = e.target; if (t.matches('.lightbox')) return close(); if (t.closest('[data-action=\"close\"]')) return close(); if (t.closest('[data-action=\"next\"]')) return next(); if (t.closest('[data-action=\"prev\"]')) return prev(); });
+    on(el, 'click', (e) => { const t = e.target; if (t.matches('.lightbox')) return close(); if (t.closest('[data-action="close"]')) return close(); if (t.closest('[data-action="next"]')) return next(); if (t.closest('[data-action="prev"]')) return prev(); });
     return { open, close };
   })();
 
   // Rendering helpers
-  function buildCard({ id, src, alt, captionText, tag = 'nature' }) {
+  function buildCard({ id, src, alt, captionText, tag = 'nature', builtin = false }) {
     const figure = document.createElement('figure');
     figure.className = 'card';
     if (id) figure.dataset.id = id;
     figure.dataset.tag = tag;
+    if (builtin) figure.dataset.builtin = '1';
 
     const del = document.createElement('button');
     del.className = 'action-delete';
@@ -154,7 +136,7 @@
 
     const figcap = document.createElement('figcaption');
     figcap.textContent = captionText || '';
-    figcap.contentEditable = 'true';
+    figcap.contentEditable = id ? 'true' : 'false';
     figcap.setAttribute('role', 'textbox');
     figcap.setAttribute('aria-label', 'Edit caption');
 
@@ -183,73 +165,50 @@
     });
   }
 
-  // Inline caption persistence for uploaded items
   function attachCaptionEditing(card) {
     const id = card.dataset.id;
-    if (!id) return; // Only persist for uploaded items; defaults remain static (unless needed)
+    if (!id) return;
     const figcap = $('figcaption', card);
     if (!figcap) return;
     on(figcap, 'blur', async () => {
-      try {
-        // Load, update, and save the single item by id
-        const all = await DB.getAll();
-        const item = all.find(i => i.id === id);
-        if (item) { item.captionText = figcap.textContent.trim(); await DB.put(item); }
-      } catch {}
+      try { await API.update({ id, captionText: figcap.textContent.trim() }); } catch {}
     });
   }
 
-  // Upload category selection prompt
-  function promptForCategory() {
-    // Simple prompt cycling through allowed tags; replace with custom dialog if desired
+  function applyFilterLabels() {
     const labels = FilterLabels.getAll();
-    const map = [
-      { tag: 'nature', label: labels.nature },
-      { tag: 'city', label: labels.city },
-      { tag: 'abstract', label: labels.abstract },
-    ];
+    $$('.filter-group .chip').forEach(chip => { const k = chip.dataset.filter; if (labels[k]) chip.textContent = labels[k]; });
+  }
+
+  function enableFilterLabelEditing() {
+    $$('.filter-group .chip').forEach(chip => {
+      on(chip, 'dblclick', () => {
+        const k = chip.dataset.filter; if (!k) return;
+        const next = window.prompt('Rename this filter label:', chip.textContent.trim());
+        if (next && next.trim()) { FilterLabels.set(k, next.trim()); applyFilterLabels(); }
+      });
+    });
+  }
+
+  function promptForCategory() {
+    const labels = FilterLabels.getAll();
+    const map = [ { tag: 'nature', label: labels.nature }, { tag: 'city', label: labels.city }, { tag: 'abstract', label: labels.abstract } ];
     const choice = window.prompt(`Where should these photos be stored?\n1) ${map[0].label}\n2) ${map[1].label}\n3) ${map[2].label}\nEnter 1, 2, or 3:`, '1');
     const idx = Number(choice) - 1;
     return map[idx]?.tag || 'nature';
   }
 
-  // Allow renaming filter chips with persistence
-  function applyFilterLabels() {
-    const labels = FilterLabels.getAll();
-    const chips = $$('.filter-group .chip');
-    chips.forEach(chip => {
-      const key = chip.dataset.filter;
-      if (labels[key]) chip.textContent = labels[key];
-    });
-  }
-
-  function enableFilterLabelEditing() {
-    // Double-click filter chips to rename
-    $$('.filter-group .chip').forEach(chip => {
-      on(chip, 'dblclick', () => {
-        const key = chip.dataset.filter;
-        if (!key) return;
-        const current = chip.textContent.trim();
-        const next = window.prompt('Rename this filter label:', current);
-        if (next && next.trim()) {
-          FilterLabels.set(key, next.trim());
-          applyFilterLabels();
-        }
-      });
-    });
-  }
-
   // Wire up controls once DOM is ready
   on(document, 'DOMContentLoaded', async () => {
-    // Theme toggle
+    // Theme
     const themeBtn = $('#themeToggle');
     if (themeBtn) on(themeBtn, 'click', () => { const mode = Theme.toggle(); themeBtn.setAttribute('aria-pressed', String(mode === 'light')); });
 
-    // Apply persisted filter labels and enable editing
+    // Filter labels
     applyFilterLabels();
     enableFilterLabelEditing();
 
-    // Filter chips
+    // Filters
     $$('.filter-group .chip').forEach(chip => {
       on(chip, 'click', () => {
         $$('.filter-group .chip').forEach(c => { c.classList.remove('is-active'); c.setAttribute('aria-pressed', 'false'); });
@@ -259,7 +218,7 @@
       });
     });
 
-    // Layout chips
+    // Layout
     $$('.layout-group .chip').forEach(chip => {
       on(chip, 'click', () => {
         $$('.layout-group .chip').forEach(c => c.classList.remove('is-active'));
@@ -270,19 +229,13 @@
 
     const gridEl = Grid.grid;
 
-    // Remove default cards that were deleted previously
-    $$('.card', gridEl).forEach(card => {
-      const img = $('img', card);
-      if (!img) return;
-      const key = img.getAttribute('src');
-      if (key && DefaultDeletes.has(key)) card.remove();
-    });
+    // Remove defaults previously deleted
+    $$('.card', gridEl).forEach(card => { const img = $('img', card); const key = img?.getAttribute('src'); if (key && DefaultDeletes.has(key)) card.remove(); });
 
-    // Load persisted uploads and render them at the top
+    // Load items from server and inject at top (newest first)
     try {
-      const saved = await DB.getAll();
-      saved.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
-      saved.forEach(item => {
+      const items = await API.list();
+      items.forEach(item => {
         const card = buildCard(item);
         gridEl.insertBefore(card, gridEl.firstChild);
         attachCardOpen(card);
@@ -290,40 +243,35 @@
       });
     } catch {}
 
-    // Attach to any remaining initial cards
-    $$('.card', gridEl).forEach(card => { attachCardOpen(card); /* captions for defaults remain static */ });
+    // Attach interactions for remaining default cards (no caption editing)
+    $$('.card', gridEl).forEach(attachCardOpen);
 
-    // Upload handling with category prompt
+    // Upload handler
     const uploadBtn = $('#uploadBtn');
     const uploadInput = $('#uploadInput');
-
-    async function fileToDataURL(file) { return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(file); }); }
-
     if (uploadBtn && uploadInput) {
       on(uploadBtn, 'click', () => uploadInput.click());
       on(uploadInput, 'change', async () => {
         const files = Array.from(uploadInput.files || []);
         if (!files.length) return;
         const tag = promptForCategory();
-        for (const file of files) {
-          if (!file.type.startsWith('image/')) continue;
-          try {
-            const dataURL = await fileToDataURL(file);
-            const id = uid();
-            const alt = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
-            const item = { id, src: dataURL, alt, captionText: 'New memory — ' + (alt || 'us'), tag, createdAt: Date.now() };
-            await DB.put(item);
+        try {
+          const uploaded = await API.upload(files, { tag });
+          // newest first: insert each at top in returned order
+          uploaded.forEach(item => {
             const card = buildCard(item);
             gridEl.insertBefore(card, gridEl.firstChild);
             attachCardOpen(card);
             attachCaptionEditing(card);
-          } catch {}
+          });
+        } catch (e) {
+          alert('Upload failed. Please try again.');
         }
         uploadInput.value = '';
       });
     }
 
-    // Delete handling (delegation)
+    // Delete handling
     on(gridEl, 'click', async (e) => {
       const btn = e.target.closest('.action-delete');
       if (!btn) return;
@@ -332,8 +280,7 @@
       if (!card) return;
       const id = card.dataset.id;
       if (id) {
-        try { await DB.remove(id); } catch {}
-        card.remove();
+        try { await API.remove(id); card.remove(); } catch { alert('Failed to delete.'); }
       } else {
         const img = $('img', card);
         const key = img?.getAttribute('src');
